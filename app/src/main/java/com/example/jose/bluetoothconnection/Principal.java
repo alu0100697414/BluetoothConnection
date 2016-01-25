@@ -8,6 +8,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Vibrator;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
@@ -29,36 +31,98 @@ import java.util.UUID;
 
 public class Principal extends AppCompatActivity {
 
-    private BluetoothAdapter BTAdapter = BluetoothAdapter.getDefaultAdapter();
+    private String nombre_dispositivo = "LENNY";
+    private String direccion_dispositivo = "D8:3C:69:E0:26:FE";
+    private int distancia_limite = 10;
+
+    private final BroadcastReceiver receiver = new BroadcastReceiver(){
+        @Override
+        public void onReceive(Context context, Intent intent) {
+
+            String action = intent.getAction();
+
+            if(BluetoothDevice.ACTION_FOUND.equals(action)) {
+
+                double px = -54; // Valor rssi a un metro de distancia
+                double rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE);
+                double distance = getDistance(rssi, px);
+                String name = intent.getStringExtra(BluetoothDevice.EXTRA_NAME);
+
+                // Si encuentra el móvil del agresor y supera la distancia limite, vibra
+                if(name.equals(getNombre_dispositivo()) && distance < getDistancia_limite()){
+                    // Parseamos el resultaandroid:gravity="center"do para que muestre dos decimales
+                    DecimalFormat df = new DecimalFormat("#.##");
+                    String rdistance = df.format(distance);
+
+                    TextView rssi_msg = (TextView) findViewById(R.id.res_busqueda);
+                    rssi_msg.setText("¡PELIGRO!\nSe ha superado la distancia límite. El agresor se encuentra a una distancia aproximada de:");
+
+                    TextView res_dist = (TextView) findViewById(R.id.res_distancia);
+                    res_dist.setText(rdistance + "m");
+
+                    Toast.makeText(Principal.this, "Búsqueda finalizada.", Toast.LENGTH_SHORT).show();
+
+                    Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+
+                    // Vibrate for 500 milliseconds
+                    v.vibrate(800);
+                }
+
+                // Si se encuentra el dispositivo del agresor, se avisa a la victima
+                else if(name.equals(getNombre_dispositivo())){
+                    // Parseamos el resultado para que muestre dos decimales
+                    DecimalFormat df = new DecimalFormat("#.##");
+                    String rdistance = df.format(distance);
+
+                    TextView rssi_msg = (TextView) findViewById(R.id.res_busqueda);
+                    rssi_msg.setText("Fuera de la distancia de peligro.");
+
+                    TextView res_dist = (TextView) findViewById(R.id.res_distancia);
+                    res_dist.setText(rdistance + "m");
+
+                    Toast.makeText(Principal.this, "Búsqueda finalizada.", Toast.LENGTH_SHORT).show();
+                }
+
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_principal);
         registerReceiver(receiver, new IntentFilter(BluetoothDevice.ACTION_FOUND));
+
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        
+
+        final BluetoothAdapter BTAdapter = BluetoothAdapter.getDefaultAdapter();
+
+        // Si está desactivado el Bluetooth, enviamos mensaje para activarlo
         if (!BTAdapter.isEnabled()) {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, 1);
         }
 
+        // Coge los dispositivos emparejados
         Set<BluetoothDevice> pairedDevices = BTAdapter.getBondedDevices();
 
-        // If there are paired devices
+        // Si hay dispositivos emparejados
         if (pairedDevices.size() > 0) {
 
-            String[] mArrayAdapter = new String[pairedDevices.size()];
+            String[] mArrayAdapter = new String[1];
             int i = 0;
 
             // Loop through paired devices
             for (BluetoothDevice device : pairedDevices) {
-                // Add the name and address to an array adapter to show in a ListView
-                //mArrayAdapter.add(device.getName() + "\n" + device.getAddress());
-                mArrayAdapter[i] = (device.getName() + "\n" + device.getAddress());
 
-                i++;
+                if(device.getName().equals(getNombre_dispositivo())) {
+                    // Añadimos el nombre y la dirección para mostrarlo luego por el listview
+                    mArrayAdapter[i] = ("Nombre: " + device.getName() + "\n" + "Dirección: " + device.getAddress());
+                    i++;
+                }
             }
 
             // Listamos todos los dispositivos emparejados con el nuestro
@@ -75,6 +139,23 @@ public class Principal extends AppCompatActivity {
 
         // Buscamos nuevos dispositivos
         BTAdapter.startDiscovery();
+
+        //delay in ms
+        int DELAY = 12000;
+
+        // Si cuando se acaba la búsqueda, no lo encontró, no hay peligro
+        Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                TextView rssi_msg = (TextView) findViewById(R.id.res_busqueda);
+
+                if(rssi_msg.getText().equals("Buscando...")){
+                    rssi_msg.setText("NO HAY PELIGRO");
+                    Toast.makeText(Principal.this, "Búsqueda finalizada.", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }, DELAY);
     }
 
     @Override
@@ -99,31 +180,28 @@ public class Principal extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    private final BroadcastReceiver receiver = new BroadcastReceiver(){
-        @Override
-        public void onReceive(Context context, Intent intent) {
-
-            String action = intent.getAction();
-            if(BluetoothDevice.ACTION_FOUND.equals(action)) {
-                int px = -54; // Valor rssi a un metro de distancia
-                int rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI,Short.MIN_VALUE);
-                double distance = getDistance(rssi, px);
-
-                DecimalFormat df = new DecimalFormat("#.##");
-                String rdistance = df.format(distance);
-
-                String name = intent.getStringExtra(BluetoothDevice.EXTRA_NAME);
-                TextView rssi_msg = (TextView) findViewById(R.id.res_busqueda);
-                rssi_msg.setText(rssi_msg.getText() + name + ": " + rssi + " dBm -- Distancia aproximada: " + rdistance + "\n");
-            }
-
-            Toast.makeText(Principal.this, "Búsqueda finalizada.", Toast.LENGTH_SHORT).show();
-        }
-    };
+    // Destructor para cuando se cierre el programa
+    @Override
+    public void onDestroy() {
+        unregisterReceiver(receiver);
+        super.onDestroy();
+    }
 
     // Devuelve la distancia aproximada en metros entre dos dispositivos
-    double getDistance(int rssi, int txPower) {
+    double getDistance(double rssi, double txPower) {
         // El 4 es el valor de n y si no hay obstáculos de por medio se usa el valor 2
         return Math.pow(10d, ((double) txPower - rssi) / (10 * 4));
+    }
+
+    String getNombre_dispositivo(){
+        return nombre_dispositivo;
+    }
+
+    String getDireccion_dispositivo(){
+        return direccion_dispositivo;
+    }
+
+    int getDistancia_limite(){
+        return distancia_limite;
     }
 }

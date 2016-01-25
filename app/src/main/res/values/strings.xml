@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">BluetoothAPP</string>
     <string name="action_settings">Configuración</string>
-    <string name="Titulo">Dispositivos emparejados</string>
-    <string name="Titulo_Encontrado">Dispositivos cercanos</string>
+    <string name="Titulo">Datos del dispositivo del agresor</string>
+    <string name="Titulo_Encontrado">Estado</string>
+    <string name="buscando">Buscando...</string>
 </resources>
